@@ -13,7 +13,11 @@ herdr skill is not in context. Every remote command uses the `herdr --machine <l
 remote IDs never mix with local ones.
 
 Ledger (survives context compaction): `~/.herdr-foreman/jobs.tsv`, one line per job:
-`name<TAB>kind<TAB>machine<TAB>tab_id<TAB>pane_id<TAB>started_at<TAB>status<TAB>summary`
+`name<TAB>kind<TAB>machine<TAB>tab_id<TAB>pane_id<TAB>started_at<TAB>status<TAB>request<TAB>summary`
+(`request` = the user's original ask, so any later session knows what each job is for).
+
+**On skill load, first read the ledger.** If it has `running` jobs, run Status immediately and
+ensure the status loop (below) is active, so a restarted foreman resumes tracking unprompted.
 
 ## Dispatch a job
 
@@ -30,6 +34,8 @@ Ledger (survives context compaction): `~/.herdr-foreman/jobs.tsv`, one line per 
      `herdr --machine M agent prompt <name> "<task>. When finished, print a one-line summary starting with SUMMARY:"`
      (no `--wait`; the foreman must not block on one job).
 6. Append the ledger line with status `running`, then reply with one line: name → machine.
+7. If no status loop is active in this session, start one: invoke the `loop` skill with
+   `2m foreman status`. The user should never have to start tracking themselves.
 
 ## Status (`foreman status`, or when asked "how are my jobs")
 
@@ -44,8 +50,10 @@ For each `running` ledger line:
 Update the ledger, and on each transition to done/failed/blocked run
 `herdr notification show "<name> <status>" --body "<summary>" --sound done` (`request` for blocked).
 Then print a single table: name | machine | status | age | last line/summary.
+Always print the table, even when nothing changed, and put transitions since the last
+report above it (`✓ job-x done: <summary>`), so the latest message in this tab is the full picture.
 
-For continuous tracking the user runs `/loop 2m foreman status` in this tab.
+When no job is `running` or `blocked`, print the final table and stop the loop.
 
 ## Other actions
 
